@@ -110,6 +110,15 @@ try {
   check("check.mjs が雪を確認している", /snow|雪/i.test(fs.readFileSync(path.join(dir, "check.mjs"), "utf8")));
 } catch (e) { check("node check.mjs が動く", false, String(e.stdout || e.message).slice(-300)); }
 const html = fs.readFileSync(path.join(dir, "index.html"), "utf8");
+// index.html の <script type="module"> の文法チェック（エラーがあると画面に何も描かれない）
+{
+  const m = [...html.matchAll(/<script[^>]*type=["']module["'][^>]*>([\s\S]*?)<\/script>/g)].map(x => x[1]).join("\n");
+  const tmp = path.join(os.tmpdir(), `b2-module-${process.pid}.mjs`);
+  fs.writeFileSync(tmp, m);
+  try { execFileSync("node", ["--check", tmp], { encoding: "utf8", stdio: "pipe" }); check("index.html のスクリプトに文法エラーが無い", true); }
+  catch (e) { check("index.html のスクリプトに文法エラーが無い", false, String(e.stderr || e.message).split("\n").slice(0, 5).join(" / ")); }
+  fs.unlinkSync(tmp);
+}
 check("index.html に S キーの切り替えがある", /KeyS|['"]s['"]|['"]S['"]/.test(html) && /PAGODA_SNOW/.test(html));
 check("操作説明に「S: 雪景色」がある", /S\s*[:：]\s*雪景色/.test(html));
 console.log(`合計: ${results.filter(Boolean).length}/${results.length}（見た目は index.html を開いて S キーで確認）`);

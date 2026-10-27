@@ -19,7 +19,7 @@ def main():
         print("ANSWERS.md がありません")
         sys.exit(1)
     text = f.read_text()
-    parts = {m.group(1): m.group(2) for m in re.finditer(r"#+\s*(Q\d)\s*\n(.*?)(?=\n#+\s*Q\d|\Z)", text, re.S)}
+    parts = {m.group(1): m.group(2) for m in re.finditer(r"#+\s*(Q\d)\b[^\n]*\n(.*?)(?=\n#+\s*Q\d|\Z)", text, re.S)}
     total = got = 0
     for q, groups in KEY.items():
         body = parts.get(q, "")

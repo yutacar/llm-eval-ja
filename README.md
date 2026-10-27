@@ -128,3 +128,14 @@ python3 grade_repeat.py ud-iq4_xs deepseek-2.25
 - 隠しテスト（`*/hidden/`）や B3 の答え（`grade_b3.py`）、B4 の正解（`grade_b4.py`）も含めて公開しています。評価するモデルには作業フォルダの外を読ませないでください
 - A5 の自動判定は言い回しで判定する目安です。最終的には `grade_c.py -v` で回答を目で確認しています
 - A2（日本語の文章）の判定は人が行う前提です。results.md の A2 は Claude がモデル名を伏せて判定した結果です
+
+## 新しいモデルを足して比べる
+
+Strata でモデルを入れたら、`run_all.sh` で全課題を順に実行できます（最初に sudo のパスワードを1回入力）。
+
+```bash
+bash run_all.sh <ラベル> <strata-use の名前>     # 例: bash run_all.sh qwen36-q4 qwen36-ud-q4_k_xl
+python3 grade_repeat.py ud-iq4_xs <ラベル>        # 繰り返しの採点を並べる
+```
+
+OpenCode の課題の採点は `grade_b1.py`〜`grade_b5.py` と `grade_b2.mjs` に作業フォルダ（`~/work/b?-<ラベル>`）を渡します。
