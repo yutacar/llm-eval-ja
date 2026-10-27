@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 2日目の作業フォルダを作る。  例: bash setup_b.sh ud-iq4_xs
+# 第2回の作業フォルダを作る。  例: bash setup_b.sh ud-iq4_xs
 set -euo pipefail
 LABEL=${1:?ラベルを指定してください（例: ud-iq4_xs）}
 HERE=$(cd "$(dirname "$0")" && pwd)

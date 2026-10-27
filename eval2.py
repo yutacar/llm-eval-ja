@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""1日目: A1 長文読解 / A2 日本語の文章 / A4 JSON 抽出 を Strata の API で実行して保存する。
+"""第1回: A1 長文読解 / A2 日本語の文章 / A4 JSON 抽出 を Strata の API で実行して保存する。
 
 例:  python3 eval2.py --label ud-iq4_xs
      python3 eval2.py --label deepseek-2.25 --tasks a1,a4

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>五重塔のある庭</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #e9a17c; }
+  #ui { position: fixed; top: 12px; left: 12px; max-width: 300px; z-index: 10;
+    font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+    background: rgba(46, 30, 22, 0.74); color: #f0e8d8;
+    border: 1px solid #9e2f1f; border-radius: 6px; padding: 10px 12px;
+    font-size: 12px; line-height: 1.7; }
+  #ui h1 { margin: 0 0 4px; font-size: 14px; letter-spacing: 3px; color: #d9a441; font-weight: 600; }
+  #views { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; z-index: 10; }
+  #views button { font-family: inherit; font-size: 12px; padding: 6px 12px; cursor: pointer;
+    background: rgba(46, 30, 22, 0.74); color: #f0e8d8;
+    border: 1px solid #9e2f1f; border-radius: 4px; }
+  #views button.on { background: #c8402a; color: #fff; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>五重塔のある庭</h1>
+  <div>ドラッグ：回転　ホイール：拡大縮小<br>キー 0：庭園　1：正面　2：側面　3：真上</div>
+  <div id="counts"></div>
+</div>
+<div id="views"></div>
+<script src="pagoda-gen.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const P = globalThis.PAGODA;
+document.getElementById('counts').textContent =
+  '全体 ' + P.stats.total.toLocaleString() + ' ブロック / 塔 ' + P.stats.pagoda.toLocaleString() + ' ブロック';
+
+// ---------- renderer ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xe9a17c, 110, 300);
+
+// ---------- camera / controls ----------
+const perspCam = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 800);
+const HOME_POS = new THREE.Vector3(46, 30, 62), HOME_TGT = new THREE.Vector3(0, 20, 0);
+perspCam.position.copy(HOME_POS);
+const VIEW_H = 25;  // 塔の高さ 46 + 4 が入る範囲（半分）
+const orthoCam = new THREE.OrthographicCamera(-VIEW_H, VIEW_H, VIEW_H, -VIEW_H, 0.1, 800);
+let activeCam = perspCam;
+
+const controls = new OrbitControls(perspCam, renderer.domElement);
+controls.target.copy(HOME_TGT);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 14;
+controls.maxDistance = 85;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.5;
+let resumeTimer = null;
+controls.addEventListener('start', () => { controls.autoRotate = false; clearTimeout(resumeTimer); });
+controls.addEventListener('end', () => { resumeTimer = setTimeout(() => { if (mode === 0) controls.autoRotate = true; }, 3000); });
+
+// ---------- voxel layers ----------
+function makeLayer(list, mat) {
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, list.length);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
+  const c = new THREE.Color();
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i];
+    v.set(b[0], b[1], b[2]);
+    m.compose(v, q, s);
+    mesh.setMatrixAt(i, m);
+    mesh.setColorAt(i, c.setRGB(b[3], b[4], b[5], THREE.SRGBColorSpace));
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  return mesh;
+}
+function stdMat(rough) { return new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: rough }); }
+const gardenMesh = makeLayer(P.garden, stdMat(0.9));
+const pagodaMesh = makeLayer(P.pagoda, stdMat(0.82));
+const waterMesh = makeLayer(P.water, new THREE.MeshStandardMaterial({
+  color: 0xffffff, transparent: true, opacity: 0.58, roughness: 0.08
+}));
+gardenMesh.castShadow = gardenMesh.receiveShadow = true;
+pagodaMesh.castShadow = pagodaMesh.receiveShadow = true;
+
+// ---------- lights ----------
+const hemi = new THREE.HemisphereLight(0xa9b8d8, 0x4f3b2a, 0.75);
+scene.add(hemi);
+const sunDir = new THREE.Vector3(-60, 34, 40).normalize();
+const sun = new THREE.DirectionalLight(0xffae6a, 2.7);
+sun.position.copy(sunDir).multiplyScalar(90);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -62; sun.shadow.camera.right = 62;
+sun.shadow.camera.top = 62; sun.shadow.camera.bottom = -62;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 260;
+sun.shadow.bias = -0.0006;
+sun.shadow.normalBias = 0.02;
+sun.shadow.camera.updateProjectionMatrix();
+scene.add(sun, sun.target);
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.7);
+keyLight.visible = false;
+scene.add(keyLight, keyLight.target);
+
+// ---------- dusk sky ----------
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { sunDir: { value: sunDir.clone() } },
+  vertexShader: [
+    'varying vec3 vDir;',
+    'void main() {',
+    '  vDir = normalize(position);',
+    '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+    '}'
+  ].join('\n'),
+  fragmentShader: [
+    'varying vec3 vDir;',
+    'uniform vec3 sunDir;',
+    'void main() {',
+    '  float h = vDir.y;',
+    '  vec3 horizon = vec3(1.00, 0.68, 0.46), mid = vec3(0.86, 0.50, 0.44), zenith = vec3(0.23, 0.24, 0.44);',
+    '  vec3 col = mix(horizon, mid, smoothstep(0.0, 0.18, h));',
+    '  col = mix(col, zenith, smoothstep(0.14, 0.7, h));',
+    '  col = mix(vec3(0.55, 0.36, 0.30), col, smoothstep(-0.12, 0.02, h));',
+    '  float s = max(dot(normalize(vDir), sunDir), 0.0);',
+    '  col += vec3(1.0, 0.62, 0.30) * pow(s, 60.0) * 1.2 + vec3(0.8, 0.45, 0.25) * pow(s, 6.0) * 0.25;',
+    '  gl_FragColor = vec4(col, 1.0);',
+    '}'
+  ].join('\n')
+});
+const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), skyMat);
+scene.add(sky);
+
+// ---------- 錦鯉 8匹 ----------
+const koiGroup = new THREE.Group();
+scene.add(koiGroup);
+const KOI = [];
+{
+  const pair = [
+    [0xf5f0e6, 0xd94f2b], [0xef8c34, 0xf5f0e6],
+    [0xe8b53a, 0xe8b53a], [0xf5f0e6, 0x2e2a26]
+  ];
+  const K = 8;
+  for (let k = 0; k < K; k++) {
+    const g = new THREE.Group();
+    const segs = [];
+    const col = pair[k % 4];
+    for (let s = 0; s < 3; s++) {
+      const seg = new THREE.Mesh(
+        new THREE.BoxGeometry(0.9, 0.36, 0.42),
+        new THREE.MeshStandardMaterial({ color: s === 2 ? col[1] : col[0], roughness: 0.7 })
+      );
+      seg.position.x = (1 - s) * 0.92;
+      g.add(seg);
+      segs.push(seg);
+    }
+    koiGroup.add(g);
+    KOI.push({
+      group: g, segs,
+      rx: 2.5 + ((k * 37) % 10) / 9 * 4.5,          // 2.5〜7
+      rz: 1.6 + ((k * 53) % 10) / 9 * 3.4,          // 1.6〜5
+      phase: k * 0.83,
+      speed: 0.14 + (k % 4) * 0.03,
+      dir: (k % 3 === 0) ? -1 : 1                    // 3匹に1匹は逆回り
+    });
+  }
+}
+
+// ---------- 落ち葉 180枚 ----------
+const LEAF_N = 180;
+const leaves = new THREE.InstancedMesh(
+  new THREE.BoxGeometry(0.34, 0.05, 0.3),
+  new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }),
+  LEAF_N
+);
+leaves.frustumCulled = false;
+scene.add(leaves);
+const leafData = [];
+{
+  const c = new THREE.Color();
+  const pal = [0xc23a1e, 0xd85520, 0xe2762a, 0xa22a1c, 0xf2a7bf, 0xea8eab, 0xffc6d6, 0xf6b6c9];
+  for (let i = 0; i < LEAF_N; i++) {
+    leaves.setColorAt(i, c.setHex(pal[i % pal.length]));
+    leafData.push({
+      x: (Math.random() * 2 - 1) * 35,
+      y: Math.random() * 29.4 + 0.6,
+      z: (Math.random() * 2 - 1) * 35,
+      fall: 0.6 + Math.random() * 0.7,
+      sway: Math.random() * Math.PI * 2,
+      spin: (Math.random() * 2 - 1) * 1.5,
+      rx: Math.random() * Math.PI, ry: Math.random() * Math.PI, rz: Math.random() * Math.PI
+    });
+  }
+  if (leaves.instanceColor) leaves.instanceColor.needsUpdate = true;
+}
+
+// ---------- 視点切替 ----------
+const fog = scene.fog;
+const paperBg = new THREE.Color(0xeee3d3);
+let mode = 0;
+const viewNames = ['庭園', '正面', '側面', '真上'];
+
+function setMode(m) {
+  mode = m;
+  const ortho = m !== 0;
+  if (ortho) {
+    if (m === 1) { orthoCam.up.set(0, 1, 0); orthoCam.position.set(0, 23, 120); }
+    if (m === 2) { orthoCam.up.set(0, 1, 0); orthoCam.position.set(120, 23, 0); }
+    if (m === 3) { orthoCam.up.set(0, 0, -1); orthoCam.position.set(0, 160, 0); }
+    orthoCam.zoom = 1;
+    orthoCam.updateProjectionMatrix();
+    controls.object = orthoCam;
+    controls.target.set(0, m === 3 ? 0 : 23, 0);
+    controls.autoRotate = false;
+    controls.minDistance = 0; controls.maxDistance = 400;
+    controls.maxPolarAngle = Math.PI;   // 正面・真上の位置をクランプしない
+    gardenMesh.visible = waterMesh.visible = false;
+    koiGroup.visible = leaves.visible = sky.visible = false;
+    scene.fog = null;
+    scene.background = paperBg;
+    sun.visible = false;
+    sun.castShadow = false;
+    hemi.color.setHex(0xffffff);
+    hemi.groundColor.setHex(0xffffff);
+    hemi.intensity = 0.5;
+    keyLight.visible = true;
+    renderer.toneMappingExposure = 1.0;
+  } else {
+    perspCam.position.copy(HOME_POS);
+    controls.object = perspCam;
+    controls.target.copy(HOME_TGT);
+    controls.minDistance = 14; controls.maxDistance = 85;
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.autoRotate = true;
+    gardenMesh.visible = waterMesh.visible = true;
+    koiGroup.visible = leaves.visible = sky.visible = true;
+    scene.fog = fog;
+    scene.background = null;
+    sun.visible = true;
+    sun.castShadow = true;
+    hemi.color.setHex(0xa9b8d8);
+    hemi.groundColor.setHex(0x4f3b2a);
+    hemi.intensity = 0.75;
+    keyLight.visible = false;
+    renderer.toneMappingExposure = 1.1;
+  }
+  for (let b = 0; b < 4; b++) viewBtns[b].classList.toggle('on', b === m);
+}
+
+const viewBtns = [];
+{
+  const holder = document.getElementById('views');
+  for (let b = 0; b < 4; b++) {
+    const btn = document.createElement('button');
+    btn.textContent = b + ' ' + viewNames[b];
+    btn.addEventListener('click', () => setMode(b));
+    holder.appendChild(btn);
+    viewBtns.push(btn);
+  }
+}
+window.addEventListener('keydown', ev => {
+  const m = { '0': 0, '1': 1, '2': 2, '3': 3 }[ev.key];
+  if (m !== undefined) setMode(m);
+});
+
+// ---------- リサイズ ----------
+function onResize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  perspCam.aspect = w / h;
+  perspCam.updateProjectionMatrix();
+  const a = w / h;
+  orthoCam.left = -VIEW_H * a; orthoCam.right = VIEW_H * a;
+  orthoCam.top = VIEW_H; orthoCam.bottom = -VIEW_H;
+  orthoCam.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+onResize();
+
+// ---------- 板と錦鯉と落ち葉のアニメーション ----------
+const clock = new THREE.Clock();
+const dummy = new THREE.Object3D();
+const waterXZ = P.water.map(b => [b[0], b[1], b[2]]);
+
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.1);
+  const t = clock.elapsedTime;
+
+  // 水面: sin(t*0.9 + x*0.7 + z*0.5) * 0.06
+  for (let i = 0; i < waterMesh.count; i++) {
+    const b = waterXZ[i];
+    dummy.position.set(b[0], b[1] + Math.sin(t * 0.9 + b[0] * 0.7 + b[2] * 0.5) * 0.06, b[2]);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    waterMesh.setMatrixAt(i, dummy.matrix);
+  }
+  waterMesh.instanceMatrix.needsUpdate = true;
+
+  // 錦鯉
+  for (const k of KOI) {
+    const a = k.phase + t * k.speed * k.dir;
+    const x = 22 + Math.cos(a) * k.rx;
+    const z = 12 + Math.sin(a) * k.rz;
+    const dx = -Math.sin(a) * k.rx * k.dir;
+    const dz = Math.cos(a) * k.rz * k.dir;
+    const heading = Math.atan2(-dz, dx);
+    const wag = Math.sin(t * 5 + k.phase * 4) * 0.4;
+    k.group.position.set(x, -0.75, z);
+    k.group.rotation.y = heading;
+    k.segs[2].rotation.y = wag;
+    k.segs[2].position.x = -0.92 - 0.18 * Math.abs(wag);
+  }
+
+  // 落ち葉
+  for (let i = 0; i < LEAF_N; i++) {
+    const d = leafData[i];
+    d.y -= d.fall * dt;
+    d.sway += dt * 2.2;
+    d.rx += d.spin * dt;
+    d.rz += d.spin * 0.7 * dt;
+    if (d.y < 0.6) {
+      d.y = 18 + Math.random() * 12;
+      d.x = (Math.random() * 2 - 1) * 35;
+      d.z = (Math.random() * 2 - 1) * 35;
+    }
+    dummy.position.set(d.x + Math.sin(d.sway) * 0.5, d.y, d.z + Math.cos(d.sway * 0.8) * 0.4);
+    dummy.rotation.set(d.rx, d.ry, d.rz);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    leaves.setMatrixAt(i, dummy.matrix);
+  }
+  leaves.instanceMatrix.needsUpdate = true;
+
+  // 正投影: カメラと同じ向きから照らす白い光
+  if (mode !== 0) {
+    const cam = controls.object;
+    keyLight.position.copy(cam.position);
+    keyLight.target.position.copy(controls.target);
+  }
+
+  controls.update();
+  renderer.render(scene, controls.object);
+});
+
+setMode(0);
+</script>
+</body>
+</html>
