@@ -1,0 +1,62 @@
+=== CI run #4127 (runner: ubuntu-24.04, TZ=UTC) ===
+$ ./run_ci.sh
+test_daily_summary (tests.test_bookings.BookingTest.test_daily_summary) ... ERROR
+test_format_roundtrip (tests.test_bookings.BookingTest.test_format_roundtrip) ... FAIL
+test_legacy_csv (tests.test_bookings.BookingTest.test_legacy_csv) ... ERROR
+test_opening_hours (tests.test_bookings.BookingTest.test_opening_hours) ... ok
+test_overlap (tests.test_bookings.BookingTest.test_overlap) ... ERROR
+
+======================================================================
+ERROR: test_daily_summary (tests.test_bookings.BookingTest.test_daily_summary)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/bookings/bookings/tests/test_bookings.py", line 12, in test_daily_summary
+    store.add("A", "2026-11-03 08:30", 60, "sato")
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/bookings/bookings/bookings/store.py", line 18, in add
+    raise ValueError(f"outside opening hours: {start_text}")
+ValueError: outside opening hours: 2026-11-03 08:30
+
+======================================================================
+ERROR: test_legacy_csv (tests.test_bookings.BookingTest.test_legacy_csv)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/bookings/bookings/tests/test_bookings.py", line 31, in test_legacy_csv
+    store.add("A", "2026-11-05 12:00", 30, "sato")
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/bookings/bookings/bookings/store.py", line 18, in add
+    raise ValueError(f"outside opening hours: {start_text}")
+ValueError: outside opening hours: 2026-11-05 12:00
+
+======================================================================
+ERROR: test_overlap (tests.test_bookings.BookingTest.test_overlap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/bookings/bookings/tests/test_bookings.py", line 19, in test_overlap
+    store.add("A", "2026-11-03 10:00", 60, "sato")
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/bookings/bookings/bookings/store.py", line 18, in add
+    raise ValueError(f"outside opening hours: {start_text}")
+ValueError: outside opening hours: 2026-11-03 10:00
+
+======================================================================
+FAIL: test_format_roundtrip (tests.test_bookings.BookingTest.test_format_roundtrip)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/bookings/bookings/tests/test_bookings.py", line 28, in test_format_roundtrip
+    self.assertEqual(timeutil.format_local(timeutil.parse_local("2026-11-03 08:30")), "2026-11-03 08:30")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '2026-11-02 23:30' != '2026-11-03 08:30'
+- 2026-11-02 23:30
+?          ---
++ 2026-11-03 08:30
+?           +++
+
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.006s
+
+FAILED (failures=1, errors=3)
+
+=== 開発者のメモ ===
+手元（日本）の PC では全部通る。CI だけ落ちる。DeprecationWarning も出ているが関係あるかは不明。

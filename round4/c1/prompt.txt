@@ -1,0 +1,12 @@
+このフォルダ（カレントディレクトリ）は、小さなネットショップの決済コード shop です。決済の入口 shop/payments.py の charge() の呼び出し方を、次のとおりに変更してください。
+
+変更内容:
+・shop/payments.py に、変更できない（frozen な）dataclass の Payment を追加する。項目は user_id: int、amount: int、currency: str = "JPY"、note: str | None = None
+・Payment を作るときに値を検査する。user_id と amount は正の整数、currency は "JPY" "USD" "EUR" のどれか。違えば ValueError
+・charge の引数を Payment 1つだけにする（def charge(payment)）。Payment 以外を渡したら TypeError。古い呼び方 charge(1, 500) は TypeError になること
+・charge が返す領収書（辞書）の中身と ledger への記録は、今までと同じにする
+・shop/ の中で charge を使っているすべての箇所と、tests/ のテストを新しい呼び方に直す。それぞれの機能の動き（金額・通貨・メモ）は変えないこと
+
+守ること:
+・このフォルダの外のファイルは読まない・変更しないこと
+・最後に python3 -m unittest -v を実行して全部通ることを確認し、直したファイルを箇条書きで報告して終了すること

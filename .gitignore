@@ -4,3 +4,6 @@ logs/
 __pycache__/
 blind_a2.html
 *_report.txt
+round4/logs/
+round4/results-d.txt
+__pycache__/
